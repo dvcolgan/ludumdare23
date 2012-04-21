@@ -10,16 +10,10 @@ body {
     background-color: black;
 }
 
-#container {
-    position: relative;
-    margin: 0 auto;
-    width: 960px;
-}
 #game {
     display: block;
-    margin: 20px auto;
-    border: 2px solid white;
-    
+    margin: 0 auto;
+    padding: 0;
 }
 
 h1 {

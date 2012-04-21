@@ -1,9 +1,8 @@
-var SCREEN_WIDTH = 1024;
-var SCREEN_HEIGHT = 768;
+var SCREEN_WIDTH;
+var SCREEN_HEIGHT;
 // the distance from the center in each direction the map extends
-var MAP_WIDTH_RADIUS = 1500;
-var MAP_HEIGHT_RADIUS = 1500;
-var MINIMAP_SIDE_LENGTH = 300;
+var MAP_SIDE_LENGTH = 5000;
+var MINIMAP_SIDE_LENGTH = 200;
 
 var FPS = 1000 / 60;
 var numLoading;
@@ -17,7 +16,8 @@ var images = {
     jupiter: 'images/jupiter.png',
     saturn: 'images/saturn.png',
     uranus: 'images/uranus.png',
-    neptune: 'images/neptune.png'
+    neptune: 'images/neptune.png',
+    starfield: 'images/starfield.jpg'
 };
 
 var keys = {
@@ -102,16 +102,23 @@ function Camera() {
     return {
         x: -(SCREEN_WIDTH / 2),
         y: -(SCREEN_HEIGHT / 2),
-        scroll_speed: 20,
+        scroll_speed: 50,
 
         update: function () {
             this.x += (keys.right - keys.left) * this.scroll_speed;
             this.y += (keys.down - keys.up) * this.scroll_speed;
+
+            // Don't let the camera go beyond the map
+            if (this.x < -MAP_SIDE_LENGTH / 2) this.x = -MAP_SIDE_LENGTH / 2;
+            if (this.x + SCREEN_WIDTH > MAP_SIDE_LENGTH / 2) this.x = (MAP_SIDE_LENGTH / 2) - SCREEN_WIDTH;
+            if (this.y < -MAP_SIDE_LENGTH / 2) this.y = -MAP_SIDE_LENGTH / 2;
+            if (this.y + SCREEN_HEIGHT > MAP_SIDE_LENGTH / 2) this.y = (MAP_SIDE_LENGTH / 2) - SCREEN_HEIGHT;
         }
     }
 }
 
 function drawMinimap(ctx, camera, planets) {
+    var shrinkFactor = (MAP_SIDE_LENGTH / MINIMAP_SIDE_LENGTH);
     ctx.strokeStyle = 'white';
     ctx.strokeRect(SCREEN_WIDTH - MINIMAP_SIDE_LENGTH, 
                    SCREEN_HEIGHT - MINIMAP_SIDE_LENGTH,
@@ -121,8 +128,8 @@ function drawMinimap(ctx, camera, planets) {
     for (var i = 0; i < planets.length; i++) {
         // TODO make each planet a different color
         // draw the planets
-        var plotX = planets[i].x / 25;
-        var plotY = planets[i].y / 25;
+        var plotX = planets[i].x / shrinkFactor;
+        var plotY = planets[i].y / shrinkFactor;
         ctx.beginPath();
         ctx.arc(Math.floor(SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2) + plotX),
                 Math.floor(SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2) + plotY), 
@@ -131,24 +138,48 @@ function drawMinimap(ctx, camera, planets) {
         ctx.fill();
 
         // draw a rectangle around the screen
-        var cameraX = SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.x / 25);
-        var cameraY = SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.y / 25);
+        var cameraX = SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.x / shrinkFactor);
+        var cameraY = SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.y / shrinkFactor);
             
-        console.log(cameraX + ' ' + cameraY);
-
         ctx.strokeStyle = 'white';
         ctx.strokeRect(Math.floor(cameraX),
                        Math.floor(cameraY),
-                       Math.floor(SCREEN_WIDTH / 25),
-                       Math.floor(SCREEN_HEIGHT / 25));
+                       Math.floor(SCREEN_WIDTH / shrinkFactor),
+                       Math.floor(SCREEN_HEIGHT / shrinkFactor));
     }
 }
 
 
+function drawStarfield(ctx, camera) {
+    var starfield = images['starfield'];
+    var starfieldLength = starfield.width * 2;
+    var scalingFactor = MINIMAP_SIDE_LENGTH / starfieldLength;
+
+    var drawX = -(starfieldLength * scalingFactor) + scalingFactor * (-starfieldLength + (-camera.x + (starfieldLength / 2)));
+    var drawY = -(starfieldLength * scalingFactor) + scalingFactor * (-starfieldLength + (-camera.y + (starfieldLength / 2)));
+
+    console.log(drawX + ', ' + drawY);
+
+    //x = -2500 draw at 0
+    //x = -1000 draw at -1500
+    //x = 0 draw at -2500
+    //x = 2500 draw at -5000
+
+
+    ctx.drawImage(starfield, drawX, drawY);
+    ctx.drawImage(starfield, drawX + starfield.width, drawY);
+    ctx.drawImage(starfield, drawX, drawY + starfield.height);
+    ctx.drawImage(starfield, drawX + starfield.width, drawY + starfield.height);
+}
+
 
 $(document).ready(function(){
+    SCREEN_WIDTH = $(window).width() - 10;
+    SCREEN_HEIGHT = $(window).height() - 10;
+
+
     var $canvas = $('<canvas id="game">').attr('width', SCREEN_WIDTH).attr('height', SCREEN_HEIGHT);
-    $('#container').append($canvas);
+    $('body').append($canvas);
     var ctx = $('#game').get(0).getContext('2d');
 
 
@@ -159,14 +190,22 @@ $(document).ready(function(){
 
         var planets = [
             Planet('sun', 0.0, 0, 0),
-            Planet('mercury', Math.random() * 2 * Math.PI, 400, Math.PI * 0.001),
-            Planet('venus', Math.random() * 2 * Math.PI, 700, Math.PI * 0.001),
-            Planet('earth', Math.random() * 2 * Math.PI, 1000, Math.PI * 0.001),
-            Planet('mars', Math.random() * 2 * Math.PI, 1300, Math.PI * 0.001),
-            Planet('jupiter', Math.random() * 2 * Math.PI, 1600, Math.PI * 0.001),
-            Planet('saturn', Math.random() * 2 * Math.PI, 2100, Math.PI * 0.001),
-            Planet('uranus', Math.random() * 2 * Math.PI, 2600, Math.PI * 0.001),
-            Planet('neptune', Math.random() * 2 * Math.PI, 3100, Math.PI * 0.001),
+            //Planet('mercury', Math.random() * 2 * Math.PI,  300, Math.PI * 0.001),
+            //Planet('venus',   Math.random() * 2 * Math.PI,  450, Math.PI * 0.001),
+            //Planet('earth',   Math.random() * 2 * Math.PI,  630, Math.PI * 0.001),
+            //Planet('mars',    Math.random() * 2 * Math.PI,  810, Math.PI * 0.001),
+            //Planet('jupiter', Math.random() * 2 * Math.PI, 1050, Math.PI * 0.001),
+            //Planet('saturn',  Math.random() * 2 * Math.PI, 1400, Math.PI * 0.001),
+            //Planet('uranus',  Math.random() * 2 * Math.PI, 1750, Math.PI * 0.001),
+            //Planet('neptune', Math.random() * 2 * Math.PI, 2100, Math.PI * 0.001),
+            Planet('mercury', Math.random() * 2 * Math.PI,  300, Math.PI * 0.001),
+            Planet('venus',   Math.random() * 2 * Math.PI,  400, Math.PI * 0.001),
+            Planet('earth',   Math.random() * 2 * Math.PI,  500, Math.PI * 0.001),
+            Planet('mars',    Math.random() * 2 * Math.PI,  600, Math.PI * 0.001),
+            Planet('jupiter', Math.random() * 2 * Math.PI, 700, Math.PI * 0.001),
+            Planet('saturn',  Math.random() * 2 * Math.PI, 850, Math.PI * 0.001),
+            Planet('uranus',  Math.random() * 2 * Math.PI, 1000, Math.PI * 0.001),
+            Planet('neptune', Math.random() * 2 * Math.PI, 1150, Math.PI * 0.001),
         ];
 
         var camera = Camera();
@@ -186,7 +225,8 @@ $(document).ready(function(){
             }
 
             // Draw everything
-            ctx.clearRect(0,0,SCREEN_WIDTH, SCREEN_HEIGHT);
+            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            drawStarfield(ctx, camera);
             for (var i = 0; i < planets.length; i++) {
                 planets[i].draw(ctx, camera);
             }
