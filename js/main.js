@@ -1,5 +1,9 @@
-var SCREEN_WIDTH = 800;
-var SCREEN_HEIGHT = 600;
+var SCREEN_WIDTH = 1024;
+var SCREEN_HEIGHT = 768;
+// the distance from the center in each direction the map extends
+var MAP_WIDTH_RADIUS = 1500;
+var MAP_HEIGHT_RADIUS = 1500;
+var MINIMAP_SIDE_LENGTH = 300;
 
 var FPS = 1000 / 60;
 var numLoading;
@@ -74,11 +78,11 @@ function Planet(name, starting_theta, orbit_distance, orbit_speed) {
         height: images[name].height,
 
         update: function() {
-            this.theta -= this.orbit_speed;
+            this.theta += this.orbit_speed;
             //TODO - normalize this angle - while larger than 2pi subtract 2pi
 
-            this.x = Math.cos(this.theta) * this.orbit_distance;
-            this.y = Math.sin(this.theta) * this.orbit_distance;
+            this.x = Math.floor(Math.cos(this.theta) * this.orbit_distance);
+            this.y = Math.floor(Math.sin(this.theta) * this.orbit_distance);
         },
         draw: function(ctx, camera) {
             ctx.drawImage(this.image, (this.x - this.width / 2) - camera.x, (this.y - this.height / 2) - camera.y);
@@ -96,9 +100,9 @@ function Planet(name, starting_theta, orbit_distance, orbit_speed) {
 
 function Camera() {
     return {
-        x: 0,
-        y: 0,
-        scroll_speed: 10,
+        x: -(SCREEN_WIDTH / 2),
+        y: -(SCREEN_HEIGHT / 2),
+        scroll_speed: 20,
 
         update: function () {
             this.x += (keys.right - keys.left) * this.scroll_speed;
@@ -107,9 +111,46 @@ function Camera() {
     }
 }
 
+function drawMinimap(ctx, camera, planets) {
+    ctx.strokeStyle = 'white';
+    ctx.strokeRect(SCREEN_WIDTH - MINIMAP_SIDE_LENGTH, 
+                   SCREEN_HEIGHT - MINIMAP_SIDE_LENGTH,
+                   SCREEN_WIDTH,
+                   SCREEN_HEIGHT);
+
+    for (var i = 0; i < planets.length; i++) {
+        // TODO make each planet a different color
+        // draw the planets
+        var plotX = planets[i].x / 25;
+        var plotY = planets[i].y / 25;
+        ctx.beginPath();
+        ctx.arc(Math.floor(SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2) + plotX),
+                Math.floor(SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2) + plotY), 
+                2, 0, 2 * Math.PI, false);
+        ctx.fillStyle = "white";
+        ctx.fill();
+
+        // draw a rectangle around the screen
+        var cameraX = SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.x / 25);
+        var cameraY = SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.y / 25);
+            
+        console.log(cameraX + ' ' + cameraY);
+
+        ctx.strokeStyle = 'white';
+        ctx.strokeRect(Math.floor(cameraX),
+                       Math.floor(cameraY),
+                       Math.floor(SCREEN_WIDTH / 25),
+                       Math.floor(SCREEN_HEIGHT / 25));
+    }
+}
+
+
 
 $(document).ready(function(){
+    var $canvas = $('<canvas id="game">').attr('width', SCREEN_WIDTH).attr('height', SCREEN_HEIGHT);
+    $('#container').append($canvas);
     var ctx = $('#game').get(0).getContext('2d');
+
 
     $(document).keyup(function(e) {handleKeyEvent(0, e);});
     $(document).keydown(function(e) {handleKeyEvent(1, e);});
@@ -118,14 +159,14 @@ $(document).ready(function(){
 
         var planets = [
             Planet('sun', 0.0, 0, 0),
-            Planet('mercury', 0.0, 100, 4),
-            Planet('venus', 0.0, 200, 4),
-            Planet('earth', 0.0, 300, 4),
-            Planet('mars', 0.0, 400, 4),
-            Planet('jupiter', 0.0, 500, 4),
-            Planet('saturn', 0.0, 600, 4),
-            Planet('uranus', 0.0, 700, 4),
-            Planet('neptune', 0.0, 800, 4),
+            Planet('mercury', Math.random() * 2 * Math.PI, 400, Math.PI * 0.001),
+            Planet('venus', Math.random() * 2 * Math.PI, 700, Math.PI * 0.001),
+            Planet('earth', Math.random() * 2 * Math.PI, 1000, Math.PI * 0.001),
+            Planet('mars', Math.random() * 2 * Math.PI, 1300, Math.PI * 0.001),
+            Planet('jupiter', Math.random() * 2 * Math.PI, 1600, Math.PI * 0.001),
+            Planet('saturn', Math.random() * 2 * Math.PI, 2100, Math.PI * 0.001),
+            Planet('uranus', Math.random() * 2 * Math.PI, 2600, Math.PI * 0.001),
+            Planet('neptune', Math.random() * 2 * Math.PI, 3100, Math.PI * 0.001),
         ];
 
         var camera = Camera();
@@ -149,6 +190,7 @@ $(document).ready(function(){
             for (var i = 0; i < planets.length; i++) {
                 planets[i].draw(ctx, camera);
             }
+            drawMinimap(ctx, camera, planets);
 
             setTimeout(mainLoop, FPS);
         };

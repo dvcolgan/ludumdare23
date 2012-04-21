@@ -37,7 +37,7 @@ All planets have gravity on you and the objects around them
 smash things into the planets?
 
 
-
+add a minimap
 
 
 
@@ -47,7 +47,3 @@ http://en.wikipedia.org/wiki/File:Terrestrial_planet_size_comparisons.jpg
 
 public domain nasa pictures
 
-
-Log:
-Friday 9:00 -  planning and making planet images
-Friday 10:00 - finishing making planet images, bare minimum engine, rudimentary screen scrolling
