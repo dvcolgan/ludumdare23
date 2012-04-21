@@ -14,6 +14,15 @@ there are guns on each planet, so if you lose the planets, you lose the guns
 if earth dies, you lose
 
 
+punch the planet to make it go faster and smash aliens in its orbit?
+how would that not be overpowered
+
+controls:
+    up is jump/accelerate forward
+    down is decelerate/land on the nearest planet
+    left/right is accelerate in that direction
+
+
 
 The sun - if something falls in it, it dies
 Mercury
@@ -47,3 +56,29 @@ http://en.wikipedia.org/wiki/File:Terrestrial_planet_size_comparisons.jpg
 
 public domain nasa pictures
 
+
+Story:
+
+NARRATOR: It was a normal-sized day for the normal-sized citizens of our beloved normal-sized planet earth.
+
+NARRATOR: Suddenly, a BIG PROBLEM appears just outside the range of all the telescopes!
+
+CHECK IT YO -- HUGE ALIENS in HUGE SPACESHIPS! --> /\
+
+NARRATOR: The aliens intercept all earth communications to deliver a message of DOOM:
+
+ALIEN 1: TINY HUMANS IN YOUR TINY WORLD!  YOU SHOULD PROBABLY JUST SURRENDER!
+
+ALIEN 2: HAHAHAHA TINY!
+
+ALIEN 1: YOU HAVE NO HOPE OF SURVIVAL!
+
+ALIEN 2: WE WILL CRUSH YOU LIKE TINY BUGS UNDER OUR HUGE FEET.
+
+ALIEN 1: FROM THIS DAY FORWARD, YOU ARE NO LONGER EXISTENT!
+
+NARRATOR: Not content with passively accepting non-existence, all earth residents pool their collective powers and let out a collective "AAAAAAAAAAH".
+
+NARRATOR: Meanwhile, in a GIANT floating house just outside the Kuiper Belt, our hero lie sound asleep in his enormous bed.  He awakes with a start!
+
+HERO: WHATEVER COULD THAT BE?
