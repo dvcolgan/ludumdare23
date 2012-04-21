@@ -68,13 +68,14 @@ function loadImages(callback) {
 
 
 // theta is in radians, orbit_speed is in theta/frame
-function Planet(name, starting_theta, orbit_distance, mass) {
+function Planet(name, color, starting_theta, orbit_distance, mass) {
     return {
         theta: starting_theta,
         orbit_distance: orbit_distance,
         orbit_speed: Math.PI * 0.001,
         mass: mass,
 
+        color: color,
         x: 0,
         y: 0,
 
@@ -182,12 +183,6 @@ function Player() {
         },
         draw: function() {
             ctx.drawImage(this.image, (this.x - this.width / 2) - camera.x, (this.y - this.height / 2) - camera.y);
-            //ctx.beginPath();
-            //ctx.arc((this.x) - camera.x,
-            //        (this.y) - camera.y,
-            //        this.width / 2, 0, 2 * Math.PI, false);
-            //ctx.fillStyle = "white";
-            //ctx.fill();
         }
     };
 }
@@ -280,106 +275,6 @@ function Alien(startX, startY) {
             this.x += this.dx;
             this.y += this.dy;
 
-            //console.log('closest ' + closestPlanet.name + ' ' + closestDist);
-            //if (closestDist < closestPlanet.width) {
-            //    var force = planet.mass * 500 / (dist * dist);
-
-            //    var theta = Math.atan2(distX, distY);
-            //    var forceX = Math.sin(theta) * force;
-            //    var forceY = Math.cos(theta) * force;
-
-            //    // We are inside the planet - don't apply anymore force
-            //    //if (dist - this.width / 2 < planet.width / 2) {
-            //    //    forceX = 0.0;
-            //    //    forceY = 0.0;
-            //    //}
-            //    if (this.x > closestPlanet.x) this.dx -= forceX;
-            //    if (this.x < closestPlanet.x) this.dx += forceX;
-            //    if (this.y > closestPlanet.y) this.dy -= forceY;
-            //    if (this.y < closestPlanet.y) this.dy += forceY;
-            //}
-
-            // Apply a thrust perpendicular to the closest planet if we are stalling
-
-
-            // Cast a ray out in front and the first thing it hits without going over the limit, go the other way
-            //var rayX = this.x;
-            //var rayY = this.y;
-            //for (var i = 0; i < 10; i++) {
-            //    rayX += this.dx;
-            //    rayY += this.dy;
-            //    
-            //    var planet = pointInPlanet(rayX, rayY, planets);
-            //    if (planet) {
-            //        var side = (rayX - this.x) * (planet.y - this.y) - (rayY - this.y) * (planet.x - this.x);
-            //        var sideSign = side ? side > 0 ? 1 : -1 : 0;
-
-            //        var rayLenX = rayX - this.x;
-            //        var rayLenY = rayY - this.y;
-            //        var signX = rayLenX ? rayLenX > 0 ? 1 : -1 : 0;
-            //        var signY = rayLenY ? rayLenY > 0 ? 1 : -1 : 0;
-
-            //        ctx.moveTo(this.x - camera.x, this.y - camera.y);
-            //        ctx.lineTo(rayX - camera.x, rayY - camera.y);
-            //        ctx.strokeStyle = 'green';
-            //        ctx.lineWidth = 4;
-            //        ctx.stroke();
-
-
-            //        var multX, multY;
-
-            //        if (signX > 0 && signY > 0) {
-            //            multX = -1.0;
-            //            multY = 1.0;
-            //        }
-            //        if (signX < 0 && signY > 0) {
-            //            multX = -1.0;
-            //            multY = 1.0;
-            //        }
-            //        if (signX < 0 && signY < 0) {
-            //            multX = -1.0;
-            //            multY = 1.0;
-            //        }
-            //        if (signX > 0 && signY < 0) {
-            //            multX = -1.0;
-            //            multY = 1.0;
-            //        }
-
-            //        ctx.moveTo(this.x - camera.x, this.y - camera.y);
-
-            //        var impulseX = -rayLenY * multY * sideSign;
-            //        var impulseY = -rayLenX * multX * sideSign;
-
-            //        ctx.lineTo((this.x + impulseX) - camera.x, (this.y + impulseY) - camera.y);
-            //        ctx.lineTo((this.x + -rayLenY * multY) - camera.x, (this.y + -rayLenX * multX) - camera.y);
-            //        ctx.strokeStyle = 'blue';
-            //        ctx.lineWidth = 4;
-            //        ctx.stroke();
-
-            //        //this.dx += impulseX;
-            //        //this.dy += impulseY;
-            //        this.dx += sideSign * this.thrust;
-            //        this.dy += impulseY;
-
-            //        break;
-            //    }
-            //}
-
-            // Debug line
-            //ctx.moveTo(this.x - camera.x, this.y - camera.y);
-            //ctx.lineTo(rayX - camera.x, rayY - camera.y);
-            //ctx.strokeStyle = 'red';
-            //ctx.lineWidth = 1;
-            //ctx.stroke();
-
-            // if not moving fast, apply thrust behind
-           // if (getMagnitude(this.dx, this.dy) < this.stall_threshold) {
-           //     var theta = Math.atan2(this.dx, this.dy);
-           //     this.dx += this.thrust * Math.cos(theta);
-           //     this.dy += this.thrust * Math.sin(theta);
-           // }
-
-
             // If we are going off the edge of the map, don't go further
             if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2) this.x = -MAP_SIDE_LENGTH / 2 + this.width / 2;
             if (this.x > MAP_SIDE_LENGTH / 2 - this.width / 2) this.x = MAP_SIDE_LENGTH / 2 - this.width / 2;
@@ -443,6 +338,25 @@ function drawMinimap(player, aliens, planets) {
                    SCREEN_WIDTH,
                    SCREEN_HEIGHT);
 
+    var plotX = player.x / shrinkFactor;
+    var plotY = player.y / shrinkFactor;
+    ctx.beginPath();
+    ctx.arc(Math.floor(SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2) + plotX),
+            Math.floor(SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2) + plotY), 
+            4, 0, 2 * Math.PI, false);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+
+    for (var i = 0; i < planets.length; i++) {
+        var plotX = aliens[i].x / shrinkFactor;
+        var plotY = aliens[i].y / shrinkFactor;
+        ctx.beginPath();
+        ctx.arc(Math.floor(SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2) + plotX),
+                Math.floor(SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2) + plotY), 
+                2, 0, 2 * Math.PI, false);
+        ctx.fillStyle = '#00FF00';
+        ctx.fill();
+    }
     for (var i = 0; i < planets.length; i++) {
         // TODO make each planet a different color
         // draw the planets
@@ -451,20 +365,20 @@ function drawMinimap(player, aliens, planets) {
         ctx.beginPath();
         ctx.arc(Math.floor(SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2) + plotX),
                 Math.floor(SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2) + plotY), 
-                2, 0, 2 * Math.PI, false);
-        ctx.fillStyle = "white";
+                planets[i].height / (2* shrinkFactor), 0, 2 * Math.PI, false);
+        ctx.fillStyle = planets[i].color;
         ctx.fill();
 
-        // draw a rectangle around the screen
-        var cameraX = SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.x / shrinkFactor);
-        var cameraY = SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.y / shrinkFactor);
-            
-        ctx.strokeStyle = 'white';
-        ctx.strokeRect(Math.floor(cameraX),
-                       Math.floor(cameraY),
-                       Math.floor(SCREEN_WIDTH / shrinkFactor),
-                       Math.floor(SCREEN_HEIGHT / shrinkFactor));
     }
+    // draw a rectangle around the screen
+    var cameraX = SCREEN_WIDTH - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.x / shrinkFactor);
+    var cameraY = SCREEN_HEIGHT - (MINIMAP_SIDE_LENGTH / 2 ) + (camera.y / shrinkFactor);
+        
+    ctx.strokeStyle = 'white';
+    ctx.strokeRect(Math.floor(cameraX),
+                   Math.floor(cameraY),
+                   Math.floor(SCREEN_WIDTH / shrinkFactor),
+                   Math.floor(SCREEN_HEIGHT / shrinkFactor));
 }
 
 
@@ -499,23 +413,15 @@ $(document).ready(function(){
     loadImages(function() {
 
         var planets = [
-            //Planet('mercury', Math.random() * 2 * Math.PI,  300, Math.PI * 0.001),
-            //Planet('venus',   Math.random() * 2 * Math.PI,  450, Math.PI * 0.001),
-            //Planet('earth',   Math.random() * 2 * Math.PI,  630, Math.PI * 0.001),
-            //Planet('mars',    Math.random() * 2 * Math.PI,  810, Math.PI * 0.001),
-            //Planet('jupiter', Math.random() * 2 * Math.PI, 1050, Math.PI * 0.001),
-            //Planet('saturn',  Math.random() * 2 * Math.PI, 1400, Math.PI * 0.001),
-            //Planet('uranus',  Math.random() * 2 * Math.PI, 1750, Math.PI * 0.001),
-            //Planet('neptune', Math.random() * 2 * Math.PI, 2100, Math.PI * 0.001),
-            Planet('sun', 0.0, 0, 100),
-            Planet('mercury', Math.random() * 2 * Math.PI,  300, 100),
-            Planet('venus',   Math.random() * 2 * Math.PI,  400, 200),
-            Planet('earth',   Math.random() * 2 * Math.PI,  500, 200),
-            Planet('mars',    Math.random() * 2 * Math.PI,  600, 200),
-            Planet('jupiter', Math.random() * 2 * Math.PI, 700,  700),
-            Planet('saturn',  Math.random() * 2 * Math.PI, 850,  500),
-            Planet('uranus',  Math.random() * 2 * Math.PI, 1000, 400),
-            Planet('neptune', Math.random() * 2 * Math.PI, 1150, 400)
+            Planet('sun', 'FF0000', 0.0, 0, 100),
+            Planet('mercury', '#C4C462', Math.random() * 2 * Math.PI,  300, 100),
+            Planet('venus',   '#FF8000', Math.random() * 2 * Math.PI,  400, 200),
+            Planet('earth',   '#0000FF', Math.random() * 2 * Math.PI,  500, 200),
+            Planet('mars',    '#FF0000', Math.random() * 2 * Math.PI,  600, 200),
+            Planet('jupiter', '#FF8000', Math.random() * 2 * Math.PI, 700,  700),
+            Planet('saturn',  '#808000', Math.random() * 2 * Math.PI, 850,  500),
+            Planet('uranus',  '#008080', Math.random() * 2 * Math.PI, 1000, 400),
+            Planet('neptune', '#0000FF', Math.random() * 2 * Math.PI, 1150, 400)
         ];
 
         var wave = 1;
