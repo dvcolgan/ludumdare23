@@ -58,28 +58,38 @@ function loadImages(callback) {
 }
 
 
-function Planet(name, orbit_distance, orbit_speed) {
+// theta is in radians, orbit_speed is in theta/frame
+function Planet(name, starting_theta, orbit_distance, orbit_speed) {
     return {
-        x: 0,
-        y: 0,
+        theta: starting_theta,
         orbit_distance: orbit_distance,
         orbit_speed: orbit_speed,
+
+        x: 0,
+        y: 0,
+
         name: name,
         image: images[name],
         width: images[name].width,
         height: images[name].height,
 
         update: function() {
+            this.theta -= this.orbit_speed;
+            //TODO - normalize this angle - while larger than 2pi subtract 2pi
+
+            this.x = Math.cos(this.theta) * this.orbit_distance;
+            this.y = Math.sin(this.theta) * this.orbit_distance;
         },
         draw: function(ctx, camera) {
-            ctx.drawImage(this.image, this.x - camera.x, this.y - camera.y);
+            ctx.drawImage(this.image, (this.x - this.width / 2) - camera.x, (this.y - this.height / 2) - camera.y);
             // Only draw this object if it is on screen
-            if (camera.x < this.x + this.width &&
-                camera.x > this.x &&
-                camera.y < this.y + this.height &&
-                camera.y > this.y)
-            {
-            }
+            // TODO only draw planets if they are on screen, wouldn't be necessary
+            //if (camera.x < this.x + this.width &&
+            //    camera.x > this.x &&
+            //    camera.y < this.y + this.height &&
+            //    camera.y > this.y)
+            //{
+            //}
         }
     }
 }
@@ -93,7 +103,6 @@ function Camera() {
         update: function () {
             this.x += (keys.right - keys.left) * this.scroll_speed;
             this.y += (keys.down - keys.up) * this.scroll_speed;
-            console.log(this.x + ', ' + this.y);
         }
     }
 }
@@ -108,15 +117,15 @@ $(document).ready(function(){
     loadImages(function() {
 
         var planets = [
-            Planet('sun', 0, 0),
-            Planet('mercury', 100, 4),
-            Planet('venus', 200, 4),
-            Planet('earth', 300, 4),
-            Planet('mars', 400, 4),
-            Planet('jupiter', 500, 4),
-            Planet('saturn', 600, 4),
-            Planet('uranus', 700, 4),
-            Planet('neptune', 800, 4),
+            Planet('sun', 0.0, 0, 0),
+            Planet('mercury', 0.0, 100, 4),
+            Planet('venus', 0.0, 200, 4),
+            Planet('earth', 0.0, 300, 4),
+            Planet('mars', 0.0, 400, 4),
+            Planet('jupiter', 0.0, 500, 4),
+            Planet('saturn', 0.0, 600, 4),
+            Planet('uranus', 0.0, 700, 4),
+            Planet('neptune', 0.0, 800, 4),
         ];
 
         var camera = Camera();
@@ -136,6 +145,7 @@ $(document).ready(function(){
             }
 
             // Draw everything
+            ctx.clearRect(0,0,SCREEN_WIDTH, SCREEN_HEIGHT);
             for (var i = 0; i < planets.length; i++) {
                 planets[i].draw(ctx, camera);
             }
