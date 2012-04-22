@@ -22,7 +22,8 @@ var images = {
     neptune: 'images/neptune.png',
     starfield: 'images/starfield.jpg',
     player: 'images/player.png',
-    alien: 'images/alien.png'
+    alien: 'images/alien.png',
+    alien_dying: 'images/alien_dying.png'
 };
 
 var keys = {
@@ -84,6 +85,7 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
         width: images[name].width,
         height: images[name].height,
 
+        // TODO make the planets strongest repulsion force be at their surface, not their center
         update: function() {
             this.theta += this.orbit_speed;
             //TODO - normalize this angle - while larger than 2pi subtract 2pi
@@ -112,67 +114,137 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
 
 function Player() {
     return {
-        x: -500,
-        y: -500,
+        x: 0,
+        y: 0,
         dx: 0.0,
         dy: 0.0,
+        friction: 4.0,
         image: images['player'],
         width: images['player'].width,
         height: images['player'].height,
+        state: 'grounded',
+        attachedPlanet: null,
+        planetXOffset: null,
+        planetYOffset: null,
 
         update: function(planets) {
-            // Apply gravity from all planets
-            //for (var i = 0; i < planets.length; i++) {
-            //    var planet = planets[i];
+            // Restore the previous attachment point if any
+            if (this.planetXOffset !== null && this.planetYOffset !== null) {
+                this.x = this.attachedPlanet.x + this.planetXOffset;
+                this.y = this.attachedPlanet.y + this.planetYOffset;
+            }
+            else {
+                //console.log('cant find attachmen');
+            }
 
-            //    // All x, y coordinates are in the center of the object
-            //    var distX = Math.abs(this.x - planet.x);
-            //    var distY = Math.abs(this.y - planet.y);
+            var inPlanet = false;
+            for (var i = 0; i < planets.length; i++) {
+                var planet = planets[i];
 
-            //    var dist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
+                var centerDist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
+                if (centerDist < planet.height / 2) {
+                    this.attachedPlanet = planet;
+                    this.state = 'grounded';
+                    inPlanet = true;
+                    break;
+                }
+            }
+            if (!inPlanet) {
+                //console.log('not in planet');
+                if (this.state === 'grounded') {
+                    // give a speed boost to take off with
+                    this.dx *= 3;
+                    this.dy *= 3;
+                }
+                this.state = 'flying';
+                this.attachedPlanet = null,
+                this.planetXOffset = null;
+                this.planetYOffset = null;
+            }
 
-            //    var force = planet.mass * 500 / (dist * dist);
+            if (this.state === 'grounded') {
+                //console.log('grounded');
+                // Handle movement
+                this.dx += (keys.right - keys.left) * 1;
+                this.dy += (keys.down - keys.up) * 1;
+                // Dampen movement if not holding arrow keys
+                if (!keys.right && !keys.left) {
+                    if (this.dx > 0) {
+                        this.dx -= this.friction;
+                        if (this.dx < 0) {
+                            this.dx = 0;
+                        }
+                    }
+                    if (this.dx < 0) {
+                        this.dx += this.friction;
+                        if (this.dx > 0) {
+                            this.dx = 0;
+                        }
+                    }
+                }
+                if (!keys.up && !keys.down) {
+                    if (this.dy > 0) {
+                        this.dy -= this.friction;
+                        if (this.dy < 0) {
+                            this.dy = 0;
+                        }
+                    }
+                    if (this.dy < 0) {
+                        this.dy += this.friction;
+                        if (this.dy > 0) {
+                            this.dy = 0;
+                        }
+                    }
+                }
+                this.x += this.dx;
+                this.y += this.dy;
 
-            //    var theta = Math.atan2(distX, distY);
+                // If we are still on the planet, store the attachment point
+                var centerDist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
+                if (centerDist < this.attachedPlanet.height / 2) {
+                    this.planetXOffset = this.x - this.attachedPlanet.x;
+                    this.planetYOffset = this.y - this.attachedPlanet.y;
+                }
+                else {
+                    this.planetXOffset = null;
+                    this.planetYOffset = null;
+                }
+            }
+            if (this.state === 'flying') {
+                //console.log('flying');
+                for (var i = 0; i < planets.length; i++) {
+                    var planet = planets[i];
 
-            //    var forceX = Math.sin(theta) * force;
-            //    var forceY = Math.cos(theta) * force;
+                    var centerDistX = this.x - planet.x;
+                    var centerDistY = this.y - planet.y;
 
+                    var centerDist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
 
-            //    //if (dist - this.width / 2 < planet.width / 2) {
-            //    //    // We are inside the planet - apply an opposite force
-            //    //    forceX *= -1.0;
-            //    //    forceY *= -1.0;
-            //    //    this.dx = 0;
-            //    //    this.dy = 0;
-            //    //}
-            //    if (dist - this.width / 2 < planet.width / 2) {
-            //        // We are inside the planet - don't apply anymore force
-            //        forceX = 0.0;
-            //        forceY = 0.0;
-            //    }
-            //    if (this.x > planet.x) this.dx -= forceX;
-            //    if (this.x < planet.x) this.dx += forceX;
-            //    if (this.y > planet.y) this.dy -= forceY;
-            //    if (this.y < planet.y) this.dy += forceY;
+                    // We are off the planet, apply gravity
+                    var centerDistXNorm = centerDistX / centerDist;
+                    var centerDistYNorm = centerDistY / centerDist;
 
-            //}
+                    var forceX = 100 * -centerDistXNorm * planet.mass / (centerDist * centerDist);
+                    var forceY = 100 * -centerDistYNorm * planet.mass / (centerDist * centerDist);
 
-            this.dx += (keys.right - keys.left) * 5;
-            this.dy += (keys.down - keys.up) * 5;
+                    this.dx += forceX;
+                    this.dy += forceY;
 
+                    // We are off the planet, clear the attachment point
+                    this.planetXOffset = null;
+                    this.planetYOffset = null;
+                }
+                this.dx += (keys.right - keys.left) * 1;
+                this.dy += (keys.down - keys.up) * 1;
+
+                this.x += this.dx;
+                this.y += this.dy;
+            }
 
             if (this.dx > 20) this.dx = 20;
             if (this.dx < -20) this.dx = -20;
             if (this.dy > 20) this.dy = 20;
             if (this.dy < -20) this.dy = -20;
-
-            this.x += this.dx;
-            this.y += this.dy;
-
-            // TODO If we are colliding with a planet, don't go further
-            //for (var i = 0; i < planets.length; i++) {
-            //}
 
             // If we are going off the edge of the map, don't go further
             if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2) this.x = -MAP_SIDE_LENGTH / 2 + this.width / 2;
@@ -194,7 +266,7 @@ function pointInPlanet(ptX, ptY, planets) {
         var planet = planets[i];
 
         var dist = Math.sqrt((ptX - planet.x) * (ptX - planet.x) + (ptY - planet.y) * (ptY - planet.y));
-        if (dist < planet.width / 2) {
+        if (dist < planet.height / 2) {
             return planet;
         }
     }
@@ -211,75 +283,106 @@ function Alien(startX, startY) {
         y: startY,
         dx: 0.0,
         dy: 0.0,
-        image: images['alien'],
-        frames: 3,
-        stall_threshold: 2.0,
-        thrust: 2.5,
+        thrust: 3.0,
+        rot: 0,
+
+        normalImage: images['alien'],
+        normalNumFrames: 3,
+        dyingImage: images['alien_dying'],
+        dyingNumFrames: 3,
+
         frameTimer: 0,
         frameLength: 5,
+
+        curImage: images['alien'],
+        numFrames: 3,
         curFrame: 0,
         width: 50,
         height: 40,
+        state: 'alive',
 
         update: function(planets) {
-            // Apply gravity and repulsion from all planets
-            for (var i = 0; i < planets.length; i++) {
-                var planet = planets[i];
+            if (this.state === 'alive') {
+                // Apply gravity and repulsion from all planets
+                for (var i = 0; i < planets.length; i++) {
+                    var planet = planets[i];
 
-                // All x, y coordinates are in the center of the object
-                var distX = this.x - planet.x;
-                var distY = this.y - planet.y;
+                    var centerDistX = this.x - planet.x;
+                    var centerDistY = this.y - planet.y;
 
-                var dist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
+                    var centerDist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
+                    var surfaceDist = centerDist - planet.height / 2;
 
-                var distXNorm = distX / dist;
-                var distYNorm = distY / dist;
+                    // Find the distances from the surface of the planet, not the center
+                    var surfaceDistX = centerDistX - (centerDistX * ((planet.height / 2) / centerDist));
+                    var surfaceDistY = centerDistY - (centerDistY * ((planet.height / 2) / centerDist));
 
-                var forceX = 0;
-                var forceY = 0;
+                    var surfaceDistXNorm = surfaceDistX / surfaceDist;
+                    var surfaceDistYNorm = surfaceDistY / surfaceDist;
 
-                var evasionDist = planet.width / 2 + 200;
-                if (dist < evasionDist) {
+                    var centerDistXNorm = centerDistX / centerDist;
+                    var centerDistYNorm = centerDistY / centerDist;
 
-                    var distXNormPerp = -distYNorm;
-                    var distYNormPerp = distXNorm;
+                    var forceX = 0;
+                    var forceY = 0;
 
-                    var evasionPercent = ((evasionDist - dist) / evasionDist);
+                    var evasionDist = 200;
+                    if (surfaceDist < evasionDist) {
 
-                    forceX += distXNorm * this.thrust * evasionPercent * evasionPercent;
-                    forceY += distYNorm * this.thrust * evasionPercent * evasionPercent;
-                    // Determine which direction we are going relative to the planet
-                    if (this.dx * distXNormPerp + this.dy * distYNormPerp > 0) {
-                        forceX += distXNormPerp * this.thrust;
-                        forceY += distYNormPerp * this.thrust;
+                        var distXNormPerp = -surfaceDistYNorm;
+                        var distYNormPerp = surfaceDistXNorm;
+
+                        var evasionPercent = ((evasionDist - surfaceDist) / evasionDist);
+
+                        forceX += surfaceDistXNorm * this.thrust * evasionPercent * evasionPercent;
+                        forceY += surfaceDistYNorm * this.thrust * evasionPercent * evasionPercent;
+                        // Determine which direction we are going relative to the planet
+                        if (this.dx * distXNormPerp + this.dy * distYNormPerp > 0) {
+                            forceX += distXNormPerp * this.thrust;
+                            forceY += distYNormPerp * this.thrust;
+                        }
+                        else {
+                            forceX -= distXNormPerp * this.thrust;
+                            forceY -= distYNormPerp * this.thrust;
+                        }
                     }
                     else {
-                        forceX -= distXNormPerp * this.thrust;
-                        forceY -= distYNormPerp * this.thrust;
+                        forceX += 100 * -centerDistXNorm * planet.mass / (centerDist * centerDist);
+                        forceY += 100 * -centerDistYNorm * planet.mass / (centerDist * centerDist);
+                    }
+
+                    this.dx += forceX;
+                    this.dy += forceY;
+                
+                    // If we get into the planet, bounce off
+                    if (surfaceDist < 0) {
+                        // We are inside the planet - kill the alien
+                        //console.log('dead');
+                        this.state = 'dying';
+                        this.curImage = this.dyingImage;
+                        this.numFrames = this.dyingNumFrames;
                     }
                 }
-                else {
-                    forceX += 100 * -distXNorm * planet.mass / (dist * dist);
-                    forceY += 100 * -distYNorm * planet.mass / (dist * dist);
-                }
 
-                this.dx += forceX;
-                this.dy += forceY;
+                if (this.dx > 10) this.dx = 10;
+                if (this.dx < -10) this.dx = -10;
+                if (this.dy > 10) this.dy = 10;
+                if (this.dy < -10) this.dy = -10;
+
+                this.x += this.dx;
+                this.y += this.dy;
+
+                // If we are going off the edge of the map, don't go further
+                if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2) this.x = -MAP_SIDE_LENGTH / 2 + this.width / 2;
+                if (this.x > MAP_SIDE_LENGTH / 2 - this.width / 2) this.x = MAP_SIDE_LENGTH / 2 - this.width / 2;
+                if (this.y < -MAP_SIDE_LENGTH / 2 + this.height / 2) this.y = -MAP_SIDE_LENGTH / 2 + this.height / 2;
+                if (this.y > MAP_SIDE_LENGTH / 2 - this.height / 2) this.y = MAP_SIDE_LENGTH / 2 - this.height / 2;
             }
-
-            if (this.dx > 10) this.dx = 10;
-            if (this.dx < -10) this.dx = -10;
-            if (this.dy > 10) this.dy = 10;
-            if (this.dy < -10) this.dy = -10;
-
-            this.x += this.dx;
-            this.y += this.dy;
-
-            // If we are going off the edge of the map, don't go further
-            if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2) this.x = -MAP_SIDE_LENGTH / 2 + this.width / 2;
-            if (this.x > MAP_SIDE_LENGTH / 2 - this.width / 2) this.x = MAP_SIDE_LENGTH / 2 - this.width / 2;
-            if (this.y < -MAP_SIDE_LENGTH / 2 + this.height / 2) this.y = -MAP_SIDE_LENGTH / 2 + this.height / 2;
-            if (this.y > MAP_SIDE_LENGTH / 2 - this.height / 2) this.y = MAP_SIDE_LENGTH / 2 - this.height / 2;
+            else if (this.state === 'dying') {
+                this.dy += 1;
+                this.x += this.dx;
+                this.y += this.dy;
+            }
 
 
             // Update sprite animations
@@ -287,7 +390,7 @@ function Alien(startX, startY) {
             if (this.frameTimer > this.frameLength) {
                 this.frameTimer = 0
                 this.curFrame++;
-                if (this.curFrame >= this.frames) {
+                if (this.curFrame >= this.numFrames) {
                     this.curFrame = 0;
                 }
             }
@@ -295,7 +398,7 @@ function Alien(startX, startY) {
         },
         draw: function() {
             ctx.drawImage(
-                this.image, 
+                this.curImage, 
                 this.curFrame * this.width,
                 0,
                 this.width,
@@ -413,7 +516,7 @@ $(document).ready(function(){
     loadImages(function() {
 
         var planets = [
-            Planet('sun', 'FF0000', 0.0, 0, 100),
+            Planet('sun', 'FF0000', 0.0, 0, 1000),
             Planet('mercury', '#C4C462', Math.random() * 2 * Math.PI,  300, 100),
             Planet('venus',   '#FF8000', Math.random() * 2 * Math.PI,  400, 200),
             Planet('earth',   '#0000FF', Math.random() * 2 * Math.PI,  500, 200),
@@ -444,11 +547,12 @@ $(document).ready(function(){
 
             ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
             // Update everything
-            player.update(planets);
-            camera.update(player);
+            // Update planets before player since we may be riding a planet
             for (var i = 0; i < planets.length; i++) {
                 planets[i].update();
             }
+            player.update(planets);
+            camera.update(player);
             for (var i = 0; i < aliens.length; i++) {
                 aliens[i].update(planets);
             }
