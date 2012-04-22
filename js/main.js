@@ -567,7 +567,8 @@ soundManager.waitForWindowLoad = true;
 soundManager.onready(function(oStatus) {
 
     if (!oStatus.success) {
-        return false;   
+        //return false;   
+        console.log('no sound');
     }
 
     sounds = {
