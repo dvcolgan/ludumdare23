@@ -23,7 +23,7 @@ var images = {
     saturn: 'images/saturn.png',
     uranus: 'images/uranus.png',
     neptune: 'images/neptune.png',
-    starfield: 'images/starfield.jpg',
+    starfield: 'images/starfield.png',
     player: 'images/player.png',
     player_flying: 'images/player_flying.png',
     player_punching: 'images/player_punching.png',
@@ -482,6 +482,7 @@ function Alien(startX, startY) {
                         this.state = 'dying';
                         this.curImage = this.dyingImage;
                         this.numFrames = this.dyingNumFrames;
+                        score += 1;
                         planet.impact();
                         sounds['explosion'].play();
                     }
@@ -533,6 +534,7 @@ function Alien(startX, startY) {
                         this.numFrames = this.dyingNumFrames;
                         planet.impact();
                         sounds['explosion'].play();
+                        score += 1;
                 }
             }
             else if (this.state === 'dying') {
