@@ -4,6 +4,9 @@ var SCREEN_HEIGHT;
 var MAP_SIDE_LENGTH = 5000;
 var MINIMAP_SIDE_LENGTH = 200;
 
+var punching = false;
+var score = 0;
+
 var ctx;
 var camera;
 
@@ -22,6 +25,8 @@ var images = {
     neptune: 'images/neptune.png',
     starfield: 'images/starfield.jpg',
     player: 'images/player.png',
+    player_flying: 'images/player_flying.png',
+    player_punching: 'images/player_punching.png',
     alien: 'images/alien.png',
     alien_dying: 'images/alien_dying.png'
 };
@@ -72,8 +77,7 @@ function loadImages(callback) {
     });
 }
 
-
-function Animation(image, numFrames, frameSpeed, frameWidth, frameHeight, loop) {
+function Animation(image, numFrames, frameSpeed, frameWidth, frameHeight, loop, callback) {
     return {
         image: image,
         curFrame: 0,
@@ -83,13 +87,32 @@ function Animation(image, numFrames, frameSpeed, frameWidth, frameHeight, loop) 
         numFrames: numFrames,
         frameSpeed: frameSpeed,
         ticksLeft: frameSpeed,
+        paused: false,
+        callback: callback,
+        start: function () {
+            this.curFrame = 0;
+            this.ticksLeft = this.frameSpeed;
+        },
+        pause: function () {
+            this.paused = true;
+        },
+        unpause: function () {
+            this.paused = false;
+        },
         update: function () {
-            this.ticksLeft--;
-            if (this.ticksLeft <= 0) {
-                this.ticksLeft = this.frameSpeed;
-                this.curFrame++;
-                if (this.loop && this.curFrame >= this.numFrames) {
-                    this.curFrame = 0;
+            if (!this.paused) {
+                this.ticksLeft--;
+                if (this.ticksLeft <= 0) {
+                    this.ticksLeft = this.frameSpeed;
+                    this.curFrame++;
+                    if (this.curFrame >= this.numFrames) {
+                        if (this.loop) {
+                            this.curFrame = 0;
+                        }
+                        else {
+                            this.callback();
+                        }
+                    }
                 }
             }
         },
@@ -173,16 +196,21 @@ function Player() {
         dx: 0.0,
         dy: 0.0,
         friction: 4.0,
-        image: images['player'],
-        width: images['player'].width,
-        height: images['player'].height,
+        animations: {
+            'grounded': Animation(images['player'], 3, 3, 100, 100, true),
+            'flying': Animation(images['player_flying'], 3, 3, 100, 100, true),
+            'punching': Animation(images['player_punching'], 4, 4, 100, 100, false, function() {
+                punching = false;
+            })
+        },
+        width: 100,
+        height: 100,
         state: 'grounded',
 
         attachedPlanet: null,
         planetXOffset: null,
         planetYOffset: null,
 
-        punching: false,
         punchCooldown: 0,
         punchCooldownLength: 30,
 
@@ -216,8 +244,8 @@ function Player() {
                 //console.log('not in planet');
                 if (this.state === 'grounded') {
                     // give a speed boost to take off with
-                    this.dx *= 3;
-                    this.dy *= 3;
+                    this.dx *= 4;
+                    this.dy *= 4;
                     sounds['takeoff'].play();
                 }
                 this.state = 'flying';
@@ -262,6 +290,14 @@ function Player() {
                 }
                 this.x += this.dx;
                 this.y += this.dy;
+
+                // Don't play the animation if we aren't moving
+                if (this.dx < 0.001 && this.dx > -0.001 && this.dy < 0.001 && this.dy > -0.001) {
+                    this.animations[this.state].pause();
+                }
+                else {
+                    this.animations[this.state].unpause();
+                }
 
                 // If we are still on the planet, store the attachment point
                 var centerDist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
@@ -319,17 +355,28 @@ function Player() {
 
 
             // Do a punch if spacebar is pressed
-            if (keys.space && this.punchCooldown == 0) {
+            if (keys.space && punching == false) {
                 sounds['punch'].play();
-                this.punchCooldown = this.punchCooldownLength;
-            }
-            if (this.punchCooldown > 0) {
-                this.punchCooldown--;
+                punching = true;
+                this.animations['punching'].start();
             }
 
+            if (punching) {
+                this.animations['punching'].update();
+            }
+            else {
+                this.animations[this.state].update();
+            }
         },
         draw: function() {
-            ctx.drawImage(this.image, (this.x - this.width / 2) - camera.x, (this.y - this.height / 2) - camera.y);
+            var animation = this.state;
+            if (punching) {
+                animation = 'punching';
+            }
+            this.animations[animation].draw(
+                (this.x - this.width / 2) - camera.x,
+                (this.y - this.height / 2) - camera.y
+            );
         }
     };
 }
@@ -488,6 +535,61 @@ function Camera() {
     };
 }
 
+function AlienSpawner(aliens) {
+    return {
+        aliens: aliens,
+        timeTillSpawn: 60 * 20,
+        countdown: 0,
+        nextSpawnCount: 5,
+        warningMessage: '',
+        warningCountdown: 180,
+        update: function() {
+            this.countdown--;
+            if (this.countdown <= 0) {
+                for (var i = 0; i < this.nextSpawnCount; i++) {
+                    aliens.push(Alien(-2000 + Math.random() * 1000, -2000 + Math.random() * 1000));
+                }
+                this.countdown = this.timeTillSpawn;
+                this.warningMessage = this.nextSpawnCount + ' Huge Aliens Have Arrived!';
+                this.warningCountdown = 180;
+                this.nextSpawnCount = Math.floor(this.nextSpawnCount * 1.2);
+                sounds['new_wave'].play();
+            }
+        },
+        draw: function() {
+            ctx.fillStyle = 'white';
+            ctx.fillText("New Aliens In: " + this.countdown, 20, 40);
+            ctx.fillText("SCORE: " + score, 20, 80);
+            if (this.warningCountdown > 0) {
+                this.warningCountdown--;
+                ctx.fillText(this.warningMessage, 20, SCREEN_HEIGHT - 20);
+            }
+        }
+    };
+}
+
+function Shockwave(x, y) {
+    return {
+        x: x,
+        y: y,
+        radius: 0,
+        maxRadius: 300,
+        update: function(aliens) {
+            this.radius++;
+            for (var i = 0; i < aliens.length; i++) {
+                var alien = aliens[i];
+                var dist = Math.sqrt((this.x - alien.x) * (this.x - alien.x) + (this.y - alien.y) * (this.y - alien.y));
+                if (dist < this.radius) {
+                    //this.alien
+                }
+            }
+        },
+        draw: function() {
+            ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, 2 * Math.PI, true);
+        }
+    };
+}
+
 function drawMinimap(player, aliens, planets) {
     var shrinkFactor = (MAP_SIDE_LENGTH / MINIMAP_SIDE_LENGTH);
     ctx.strokeStyle = 'white';
@@ -592,6 +694,14 @@ soundManager.onready(function(oStatus) {
         $(document).keyup(function(e) {handleKeyEvent(0, e);});
         $(document).keydown(function(e) {handleKeyEvent(1, e);});
 
+        $(window).resize(function () {
+            SCREEN_WIDTH = $(window).width() - 10;
+            SCREEN_HEIGHT = $(window).height() - 10;
+            $canvas.attr('width', SCREEN_WIDTH).attr('height', SCREEN_HEIGHT);
+            ctx = $canvas.get(0).getContext('2d');
+            ctx.font = "bold 24px Inconsolata";
+        });
+
         loadImages(function() {
 
             var planets = [
@@ -605,26 +715,16 @@ soundManager.onready(function(oStatus) {
                 Planet('uranus',  '#008080', Math.random() * 2 * Math.PI, 1000, 400),
                 Planet('neptune', '#0000FF', Math.random() * 2 * Math.PI, 1150, 400)
             ];
-
-            var wave = 0;
-
-            var waves = [
-                5,
-                10,
-                15,
-                20
-            ];
             var aliens = [];
-            for (var i = 0; i < waves[wave]; i++) {
-                aliens.push(Alien(-2000 + Math.random() * 1000, -2000 + Math.random() * 1000));
-            }
 
             camera = Camera();
 
             var player = Player();
             
-            sounds['new_wave'].play();
-            
+
+            ctx.font = "bold 24px Inconsolata";
+            var spawner = AlienSpawner(aliens);
+
             var mainLoop = function() {
                 // Show the loading screen if we are still loading things
                 if (numLoading > 0) {
@@ -636,6 +736,7 @@ soundManager.onready(function(oStatus) {
                 ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
                 // Update everything
                 // Update planets before player since we may be riding a planet
+                spawner.update();
                 for (var i = 0; i < planets.length; i++) {
                     planets[i].update();
                 }
@@ -644,7 +745,6 @@ soundManager.onready(function(oStatus) {
                 for (var i = 0; i < aliens.length; i++) {
                     aliens[i].update(planets);
                 }
-                //alienSpawner(
 
                 // Draw everything
                 drawStarfield();
@@ -656,6 +756,7 @@ soundManager.onready(function(oStatus) {
                 }
                 player.draw();
                 drawMinimap(player, aliens, planets);
+                spawner.draw();
 
                 setTimeout(mainLoop, FPS);
             };
