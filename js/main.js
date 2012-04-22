@@ -682,6 +682,8 @@ soundManager.onready(function(oStatus) {
         'laser_shoot': soundManager.createSound({id: 'laser_shoot', url: 'sounds/laser_shoot.mp3', autoLoad: true})
     };
 
+    var bgm = soundManager.createSound({id: 'bgm', url: 'sounds/bgm.mp3', autoLoad: true, loops: 100000, onload: function(){this.play();}});
+
     $(document).ready(function(){
 
         SCREEN_WIDTH = $(window).width() - 10;
