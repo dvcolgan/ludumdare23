@@ -25,16 +25,21 @@ var images = {
     alien: 'images/alien.png',
     alien_dying: 'images/alien_dying.png'
 };
+var sounds = {};
 
 var keys = {
     up: 0,
     down: 0,
     left: 0,
-    right: 0
+    right: 0,
+    space: 0
 };
 
 function handleKeyEvent(state, e) {
     switch(e.which) {
+        case 32:
+            keys.space = state;
+            break;
         case 37:
             keys.left = state;
             break;
@@ -68,6 +73,42 @@ function loadImages(callback) {
 }
 
 
+function Animation(image, numFrames, frameSpeed, frameWidth, frameHeight, loop) {
+    return {
+        image: image,
+        curFrame: 0,
+        loop: loop,
+        frameWidth: frameWidth,
+        frameHeight: frameHeight,
+        numFrames: numFrames,
+        frameSpeed: frameSpeed,
+        ticksLeft: frameSpeed,
+        update: function () {
+            this.ticksLeft--;
+            if (this.ticksLeft <= 0) {
+                this.ticksLeft = this.frameSpeed;
+                this.curFrame++;
+                if (this.loop && this.curFrame >= this.numFrames) {
+                    this.curFrame = 0;
+                }
+            }
+        },
+        draw: function(x, y) {
+            ctx.drawImage(
+                this.image, 
+                this.curFrame * this.frameWidth,
+                0,
+                this.frameWidth,
+                this.frameHeight,
+                x,
+                y, 
+                this.frameWidth,
+                this.frameHeight);
+        }
+    };
+}
+
+
 // theta is in radians, orbit_speed is in theta/frame
 function Planet(name, color, starting_theta, orbit_distance, mass) {
     return {
@@ -84,6 +125,7 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
         image: images[name],
         width: images[name].width,
         height: images[name].height,
+        shakesLeft: 0,
 
         // TODO make the planets strongest repulsion force be at their surface, not their center
         update: function() {
@@ -93,13 +135,24 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
             this.x = Math.floor(Math.cos(this.theta) * this.orbit_distance);
             this.y = Math.floor(Math.sin(this.theta) * this.orbit_distance);
         },
+        impact: function() {
+            this.shakesLeft = 5;
+        },
         draw: function() {
+            // Always use height because Saturn is too wide
+            var drawX = (this.x - this.width / 2) - camera.x;
+            var drawY = (this.y - this.height / 2) - camera.y;
+            if (this.shakesLeft > 0) {
+                drawX += Math.random() * 20 - 10;
+                drawY += Math.random() * 20 - 10;
+                this.shakesLeft--;
+            }
 
             ctx.beginPath()
             ctx.arc(-camera.x, -camera.y, this.orbit_distance, 0, 2 * Math.PI, false);
             ctx.strokeStyle = '#444';
             ctx.stroke();
-            ctx.drawImage(this.image, (this.x - this.width / 2) - camera.x, (this.y - this.height / 2) - camera.y);
+            ctx.drawImage(this.image, drawX, drawY);
             // Only draw this object if it is on screen
             // TODO only draw planets if they are on screen, wouldn't be necessary
             //if (camera.x < this.x + this.width &&
@@ -112,6 +165,7 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
     };
 }
 
+
 function Player() {
     return {
         x: 0,
@@ -123,9 +177,14 @@ function Player() {
         width: images['player'].width,
         height: images['player'].height,
         state: 'grounded',
+
         attachedPlanet: null,
         planetXOffset: null,
         planetYOffset: null,
+
+        punching: false,
+        punchCooldown: 0,
+        punchCooldownLength: 30,
 
         update: function(planets) {
             // Restore the previous attachment point if any
@@ -134,7 +193,7 @@ function Player() {
                 this.y = this.attachedPlanet.y + this.planetYOffset;
             }
             else {
-                //console.log('cant find attachmen');
+                //console.log('cant find attachment');
             }
 
             var inPlanet = false;
@@ -144,6 +203,10 @@ function Player() {
                 var centerDist = Math.sqrt((this.x - planet.x) * (this.x - planet.x) + (this.y - planet.y) * (this.y - planet.y));
                 if (centerDist < planet.height / 2) {
                     this.attachedPlanet = planet;
+                    if (this.state === 'flying') {
+                        planet.impact();
+                        sounds['landing'].play();
+                    }
                     this.state = 'grounded';
                     inPlanet = true;
                     break;
@@ -155,6 +218,7 @@ function Player() {
                     // give a speed boost to take off with
                     this.dx *= 3;
                     this.dy *= 3;
+                    sounds['takeoff'].play();
                 }
                 this.state = 'flying';
                 this.attachedPlanet = null,
@@ -252,6 +316,17 @@ function Player() {
             if (this.y < -MAP_SIDE_LENGTH / 2 + this.height / 2) this.y = -MAP_SIDE_LENGTH / 2 + this.height / 2;
             if (this.y > MAP_SIDE_LENGTH / 2 - this.height / 2) this.y = MAP_SIDE_LENGTH / 2 - this.height / 2;
 
+
+
+            // Do a punch if spacebar is pressed
+            if (keys.space && this.punchCooldown == 0) {
+                sounds['punch'].play();
+                this.punchCooldown = this.punchCooldownLength;
+            }
+            if (this.punchCooldown > 0) {
+                this.punchCooldown--;
+            }
+
         },
         draw: function() {
             ctx.drawImage(this.image, (this.x - this.width / 2) - camera.x, (this.y - this.height / 2) - camera.y);
@@ -284,21 +359,15 @@ function Alien(startX, startY) {
         dx: 0.0,
         dy: 0.0,
         thrust: 3.0,
-        rot: 0,
 
-        normalImage: images['alien'],
-        normalNumFrames: 3,
-        dyingImage: images['alien_dying'],
-        dyingNumFrames: 3,
+        animations: {
+            'alive': Animation(images['alien'], 3, 15, 50, 40, true),
+            'dying': Animation(images['alien_dying'], 3, 15, 50, 40, true),
+        },
 
-        frameTimer: 0,
-        frameLength: 5,
-
-        curImage: images['alien'],
-        numFrames: 3,
-        curFrame: 0,
         width: 50,
         height: 40,
+
         state: 'alive',
 
         update: function(planets) {
@@ -354,13 +423,13 @@ function Alien(startX, startY) {
                     this.dx += forceX;
                     this.dy += forceY;
                 
-                    // If we get into the planet, bounce off
                     if (surfaceDist < 0) {
                         // We are inside the planet - kill the alien
-                        //console.log('dead');
                         this.state = 'dying';
                         this.curImage = this.dyingImage;
                         this.numFrames = this.dyingNumFrames;
+                        planet.impact();
+                        sounds['explosion'].play();
                     }
                 }
 
@@ -385,28 +454,14 @@ function Alien(startX, startY) {
             }
 
 
-            // Update sprite animations
-            this.frameTimer++;
-            if (this.frameTimer > this.frameLength) {
-                this.frameTimer = 0
-                this.curFrame++;
-                if (this.curFrame >= this.numFrames) {
-                    this.curFrame = 0;
-                }
-            }
+            this.animations[this.state].update();
 
         },
         draw: function() {
-            ctx.drawImage(
-                this.curImage, 
-                this.curFrame * this.width,
-                0,
-                this.width,
-                this.height,
+            this.animations[this.state].draw(
                 (this.x - this.width / 2) - camera.x,
-                (this.y - this.height / 2) - camera.y,
-                this.width,
-                this.height);
+                (this.y - this.height / 2) - camera.y
+            );
         }
     };
 }
@@ -450,7 +505,7 @@ function drawMinimap(player, aliens, planets) {
     ctx.fillStyle = '#FFFFFF';
     ctx.fill();
 
-    for (var i = 0; i < planets.length; i++) {
+    for (var i = 0; i < aliens.length; i++) {
         var plotX = aliens[i].x / shrinkFactor;
         var plotY = aliens[i].y / shrinkFactor;
         ctx.beginPath();
@@ -499,78 +554,112 @@ function drawStarfield() {
     ctx.drawImage(starfield, drawX + starfield.width, drawY + starfield.height);
 }
 
+soundManager.flashVersion = 9;
+soundManager.useHighPerformance = true;
+soundManager.useFastPolling = true;
 
-$(document).ready(function(){
-    SCREEN_WIDTH = $(window).width() - 10;
-    SCREEN_HEIGHT = $(window).height() - 10;
+soundManager.url = 'swf/';
+soundManager.debugMode = false;
+soundManager.consoleOnly = false;
+soundManager.debugFlash = false;
+soundManager.waitForWindowLoad = true;
 
+soundManager.onready(function(oStatus) {
 
-    var $canvas = $('<canvas id="game">').attr('width', SCREEN_WIDTH).attr('height', SCREEN_HEIGHT);
-    $('body').append($canvas);
-    ctx = $('#game').get(0).getContext('2d');
+    if (!oStatus.success) {
+        return false;   
+    }
 
+    sounds = {
+        'explosion': soundManager.createSound({id: 'explosion', url: 'sounds/explosion.mp3', autoLoad: true}),
+        'punch': soundManager.createSound({id: 'punch', url: 'sounds/punch.mp3', autoLoad: true}),
+        'new_wave': soundManager.createSound({id: 'new_wave', url: 'sounds/new_wave.mp3', autoLoad: true}),
+        'takeoff': soundManager.createSound({id: 'takeoff', url: 'sounds/takeoff.mp3', autoLoad: true}),
+        'landing': soundManager.createSound({id: 'landing', url: 'sounds/landing.mp3', autoLoad: true}),
+        'laser_shoot': soundManager.createSound({id: 'laser_shoot', url: 'sounds/laser_shoot.mp3', autoLoad: true})
+    };
 
-    $(document).keyup(function(e) {handleKeyEvent(0, e);});
-    $(document).keydown(function(e) {handleKeyEvent(1, e);});
+    $(document).ready(function(){
 
-    loadImages(function() {
+        SCREEN_WIDTH = $(window).width() - 10;
+        SCREEN_HEIGHT = $(window).height() - 10;
 
-        var planets = [
-            Planet('sun', 'FF0000', 0.0, 0, 1000),
-            Planet('mercury', '#C4C462', Math.random() * 2 * Math.PI,  300, 100),
-            Planet('venus',   '#FF8000', Math.random() * 2 * Math.PI,  400, 200),
-            Planet('earth',   '#0000FF', Math.random() * 2 * Math.PI,  500, 200),
-            Planet('mars',    '#FF0000', Math.random() * 2 * Math.PI,  600, 200),
-            Planet('jupiter', '#FF8000', Math.random() * 2 * Math.PI, 700,  700),
-            Planet('saturn',  '#808000', Math.random() * 2 * Math.PI, 850,  500),
-            Planet('uranus',  '#008080', Math.random() * 2 * Math.PI, 1000, 400),
-            Planet('neptune', '#0000FF', Math.random() * 2 * Math.PI, 1150, 400)
-        ];
+        var $canvas = $('<canvas id="game">').attr('width', SCREEN_WIDTH).attr('height', SCREEN_HEIGHT);
+        $('body').append($canvas);
+        ctx = $('#game').get(0).getContext('2d');
 
-        var wave = 1;
-        var aliens = [];
-        for (var i = 0; i < 100; i++) {
-            aliens.push(Alien(-1000 / 2 + Math.random() * 100, -1000 / 2 + Math.random() * 100));
-        }
+        $(document).keyup(function(e) {handleKeyEvent(0, e);});
+        $(document).keydown(function(e) {handleKeyEvent(1, e);});
 
-        camera = Camera();
+        loadImages(function() {
 
-        var player = Player();
+            var planets = [
+                Planet('sun', 'FF0000', 0.0, 0, 1000),
+                Planet('mercury', '#C4C462', Math.random() * 2 * Math.PI,  300, 100),
+                Planet('venus',   '#FF8000', Math.random() * 2 * Math.PI,  400, 200),
+                Planet('earth',   '#0000FF', Math.random() * 2 * Math.PI,  500, 200),
+                Planet('mars',    '#FF0000', Math.random() * 2 * Math.PI,  600, 200),
+                Planet('jupiter', '#FF8000', Math.random() * 2 * Math.PI, 700,  700),
+                Planet('saturn',  '#808000', Math.random() * 2 * Math.PI, 850,  500),
+                Planet('uranus',  '#008080', Math.random() * 2 * Math.PI, 1000, 400),
+                Planet('neptune', '#0000FF', Math.random() * 2 * Math.PI, 1150, 400)
+            ];
 
-        var mainLoop = function() {
-            // Show the loading screen if we are still loading things
-            if (numLoading > 0) {
-                ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-                ctx.fillText("Definitely Loading...", 50, 50);
+            var wave = 0;
+
+            var waves = [
+                5,
+                10,
+                15,
+                20
+            ];
+            var aliens = [];
+            for (var i = 0; i < waves[wave]; i++) {
+                aliens.push(Alien(-2000 + Math.random() * 1000, -2000 + Math.random() * 1000));
             }
 
+            camera = Camera();
 
-            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-            // Update everything
-            // Update planets before player since we may be riding a planet
-            for (var i = 0; i < planets.length; i++) {
-                planets[i].update();
-            }
-            player.update(planets);
-            camera.update(player);
-            for (var i = 0; i < aliens.length; i++) {
-                aliens[i].update(planets);
-            }
-            //alienSpawner(
+            var player = Player();
+            
+            sounds['new_wave'].play();
+            
+            var mainLoop = function() {
+                // Show the loading screen if we are still loading things
+                if (numLoading > 0) {
+                    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+                    ctx.fillText("Definitely Loading...", 50, 50);
+                }
 
-            // Draw everything
-            drawStarfield();
-            for (var i = 0; i < planets.length; i++) {
-                planets[i].draw();
-            }
-            for (var i = 0; i < aliens.length; i++) {
-                aliens[i].draw();
-            }
-            player.draw();
-            drawMinimap(player, aliens, planets);
 
+                ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+                // Update everything
+                // Update planets before player since we may be riding a planet
+                for (var i = 0; i < planets.length; i++) {
+                    planets[i].update();
+                }
+                player.update(planets);
+                camera.update(player);
+                for (var i = 0; i < aliens.length; i++) {
+                    aliens[i].update(planets);
+                }
+                //alienSpawner(
+
+                // Draw everything
+                drawStarfield();
+                for (var i = 0; i < planets.length; i++) {
+                    planets[i].draw();
+                }
+                for (var i = 0; i < aliens.length; i++) {
+                    aliens[i].draw();
+                }
+                player.draw();
+                drawMinimap(player, aliens, planets);
+
+                setTimeout(mainLoop, FPS);
+            };
             setTimeout(mainLoop, FPS);
-        };
-        setTimeout(mainLoop, FPS);
+        });
     });
 });
+
