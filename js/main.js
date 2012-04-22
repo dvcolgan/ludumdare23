@@ -211,10 +211,7 @@ function Player() {
         planetXOffset: null,
         planetYOffset: null,
 
-        punchCooldown: 0,
-        punchCooldownLength: 30,
-
-        update: function(planets) {
+        update: function(planets, shockwaves) {
             // Restore the previous attachment point if any
             if (this.planetXOffset !== null && this.planetYOffset !== null) {
                 this.x = this.attachedPlanet.x + this.planetXOffset;
@@ -324,8 +321,8 @@ function Player() {
                     var centerDistXNorm = centerDistX / centerDist;
                     var centerDistYNorm = centerDistY / centerDist;
 
-                    var forceX = 100 * -centerDistXNorm * planet.mass / (centerDist * centerDist);
-                    var forceY = 100 * -centerDistYNorm * planet.mass / (centerDist * centerDist);
+                    var forceX = 50 * -centerDistXNorm * planet.mass / (centerDist * centerDist);
+                    var forceY = 50 * -centerDistYNorm * planet.mass / (centerDist * centerDist);
 
                     this.dx += forceX;
                     this.dy += forceY;
@@ -334,8 +331,15 @@ function Player() {
                     this.planetXOffset = null;
                     this.planetYOffset = null;
                 }
-                this.dx += (keys.right - keys.left) * 1;
-                this.dy += (keys.down - keys.up) * 1;
+                // Make changing direction easier
+                var thrust = 2;
+                if (this.dx > 0 && keys.left) thrust = 4;
+                if (this.dx < 0 && keys.right) thrust = 4;
+                if (this.dy > 0 && keys.up) thrust = 4;
+                if (this.dy < 0 && keys.down) thrust = 4;
+
+                this.dx += (keys.right - keys.left) * thrust;
+                this.dy += (keys.down - keys.up) * thrust;
 
                 this.x += this.dx;
                 this.y += this.dy;
@@ -359,6 +363,7 @@ function Player() {
                 sounds['punch'].play();
                 punching = true;
                 this.animations['punching'].start();
+                shockwaves.push(Shockwave(this.x, this.y));
             }
 
             if (punching) {
@@ -405,6 +410,8 @@ function Alien(startX, startY) {
         y: startY,
         dx: 0.0,
         dy: 0.0,
+        shockwaveDX: 0,
+        shockwaveDY: 0,
         thrust: 3.0,
 
         animations: {
@@ -488,11 +495,45 @@ function Alien(startX, startY) {
                 this.x += this.dx;
                 this.y += this.dy;
 
-                // If we are going off the edge of the map, don't go further
-                if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2) this.x = -MAP_SIDE_LENGTH / 2 + this.width / 2;
-                if (this.x > MAP_SIDE_LENGTH / 2 - this.width / 2) this.x = MAP_SIDE_LENGTH / 2 - this.width / 2;
-                if (this.y < -MAP_SIDE_LENGTH / 2 + this.height / 2) this.y = -MAP_SIDE_LENGTH / 2 + this.height / 2;
-                if (this.y > MAP_SIDE_LENGTH / 2 - this.height / 2) this.y = MAP_SIDE_LENGTH / 2 - this.height / 2;
+                this.x += this.shockwaveDX;
+                this.y += this.shockwaveDY;
+
+                if (this.shockwaveDX > 0) {
+                    this.shockwaveDX -= this.thrust / 2;
+                    if (this.shockwaveDX < 0) {
+                        this.shockwaveDX = 0;
+                    }
+                }
+                if (this.shockwaveDX < 0) {
+                    this.shockwaveDX += this.thrust / 2;
+                    if (this.shockwaveDX > 0) {
+                        this.shockwaveDX = 0;
+                    }
+                }
+                if (this.shockwaveDY > 0) {
+                    this.shockwaveDY -= this.thrust / 2;
+                    if (this.shockwaveDY < 0) {
+                        this.shockwaveDY = 0;
+                    }
+                }
+                if (this.shockwaveDY < 0) {
+                    this.shockwaveDY += this.thrust / 2;
+                    if (this.shockwaveDY > 0) {
+                        this.shockwaveDY = 0;
+                    }
+                }
+
+                // If an alien goes off the side of the map it dies
+                if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2 ||
+                    this.x > MAP_SIDE_LENGTH / 2 - this.width / 2 ||
+                    this.y < -MAP_SIDE_LENGTH / 2 + this.height / 2 ||
+                    this.y > MAP_SIDE_LENGTH / 2 - this.height / 2) {
+                        this.state = 'dying';
+                        this.curImage = this.dyingImage;
+                        this.numFrames = this.dyingNumFrames;
+                        planet.impact();
+                        sounds['explosion'].play();
+                }
             }
             else if (this.state === 'dying') {
                 this.dy += 1;
@@ -552,7 +593,7 @@ function AlienSpawner(aliens) {
                 this.countdown = this.timeTillSpawn;
                 this.warningMessage = this.nextSpawnCount + ' Huge Aliens Have Arrived!';
                 this.warningCountdown = 180;
-                this.nextSpawnCount = Math.floor(this.nextSpawnCount * 1.2);
+                this.nextSpawnCount = this.nextSpawnCount * 2;
                 sounds['new_wave'].play();
             }
         },
@@ -573,19 +614,38 @@ function Shockwave(x, y) {
         x: x,
         y: y,
         radius: 0,
-        maxRadius: 300,
-        update: function(aliens) {
-            this.radius++;
+        maxRadius: 200,
+        update: function(aliens, shockwaves) {
             for (var i = 0; i < aliens.length; i++) {
                 var alien = aliens[i];
+
                 var dist = Math.sqrt((this.x - alien.x) * (this.x - alien.x) + (this.y - alien.y) * (this.y - alien.y));
                 if (dist < this.radius) {
-                    //this.alien
+
+                    // calculate the normal vector
+                    var distX = this.x - alien.x;
+                    var distY = this.y - alien.y;
+
+                    var distXNorm = distX / dist;
+                    var distYNorm = distY / dist;
+
+                    // Accelerate the alien in the direction of the normal
+                    alien.shockwaveDX += -distXNorm * 40;
+                    alien.shockwaveDY += -distYNorm * 40;
+                    
                 }
+            }
+            this.radius+=40;
+            if (this.radius > this.maxRadius) {
+                shockwaves.splice(shockwaves.indexOf(this), 1)
             }
         },
         draw: function() {
-            ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, 2 * Math.PI, true);
+            ctx.beginPath();
+            ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, 2 * Math.PI, false);
+            var opacity = 1; /1; ///0.5 + (this.maxRadius - this.radius) / this.maxRadius;
+            ctx.fillStyle = 'rgba(255, 255, 255, '+ opacity +')';
+            ctx.fill();
         }
     };
 }
@@ -721,6 +781,8 @@ soundManager.onready(function(oStatus) {
 
             camera = Camera();
 
+            var shockwaves = [];
+
             var player = Player();
             
 
@@ -742,7 +804,10 @@ soundManager.onready(function(oStatus) {
                 for (var i = 0; i < planets.length; i++) {
                     planets[i].update();
                 }
-                player.update(planets);
+                player.update(planets, shockwaves);
+                for (var i = 0; i < shockwaves.length; i++) {
+                    shockwaves[i].update(aliens, shockwaves);
+                }
                 camera.update(player);
                 for (var i = 0; i < aliens.length; i++) {
                     aliens[i].update(planets);
@@ -755,6 +820,9 @@ soundManager.onready(function(oStatus) {
                 }
                 for (var i = 0; i < aliens.length; i++) {
                     aliens[i].draw();
+                }
+                for (var i = 0; i < shockwaves.length; i++) {
+                    shockwaves[i].draw();
                 }
                 player.draw();
                 drawMinimap(player, aliens, planets);
