@@ -6,6 +6,9 @@ var MINIMAP_SIDE_LENGTH = 200;
 
 var punching = false;
 var score = 0;
+var earthHealth = 700;
+var earthHit = 0;
+var advanceSlide = false;
 
 var ctx;
 var camera;
@@ -18,6 +21,7 @@ var images = {
     mercury: 'images/mercury.png',
     venus: 'images/venus.png',
     earth: 'images/earth.png',
+    hurtearth: 'images/hurtearth.png',
     mars: 'images/mars.png',
     jupiter: 'images/jupiter.png',
     saturn: 'images/saturn.png',
@@ -28,7 +32,21 @@ var images = {
     player_flying: 'images/player_flying.png',
     player_punching: 'images/player_punching.png',
     alien: 'images/alien.png',
-    alien_dying: 'images/alien_dying.png'
+    alien_dying: 'images/alien_dying.png',
+
+    sponsor: 'images/sponsor.png',
+    title: 'images/title.png',
+
+    story1: 'images/story1.png',
+    story2: 'images/story2.png',
+    story3: 'images/story3.png',
+    story4: 'images/story4.png',
+    story5: 'images/story5.png',
+
+    howtoplay: 'images/howtoplay.png',
+
+    gameover1: 'images/gameover1.png',
+    gameover2: 'images/gameover2.png'
 };
 var sounds = {};
 
@@ -131,6 +149,40 @@ function Animation(image, numFrames, frameSpeed, frameWidth, frameHeight, loop, 
     };
 }
 
+function HealthBar() {
+    return {
+        update: function() {
+        },
+        draw: function() {
+            ctx.beginPath();
+            ctx.fillStyle = 'white';
+            ctx.rect(300, 23, 700, 16);
+            ctx.fill();
+            ctx.beginPath();
+            if (earthHit > 0) {
+                if (earthHealth <= 100) {
+                    ctx.fillStyle = 'white';
+                }
+                else {
+                    ctx.fillStyle = '#FF0000';
+                }
+                earthHit--;
+            }
+            else if (earthHealth > 350) {
+                ctx.fillStyle = '#00FF00';
+            }
+            else if (earthHealth > 100) {
+                ctx.fillStyle = '#FFFF00';
+            }
+            else {
+                ctx.fillStyle = '#FF0000';
+            }
+            ctx.fillText("Earth Health:", 20, 40);
+            ctx.rect(300, 23, earthHealth, 16);
+            ctx.fill();
+        }
+    };
+}
 
 // theta is in radians, orbit_speed is in theta/frame
 function Planet(name, color, starting_theta, orbit_distance, mass) {
@@ -160,6 +212,10 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
         },
         impact: function() {
             this.shakesLeft = 5;
+            if (this.name == 'earth') {
+                earthHealth -=4 ;
+                earthHit = 3;
+            }
         },
         draw: function() {
             // Always use height because Saturn is too wide
@@ -175,7 +231,13 @@ function Planet(name, color, starting_theta, orbit_distance, mass) {
             ctx.arc(-camera.x, -camera.y, this.orbit_distance, 0, 2 * Math.PI, false);
             ctx.strokeStyle = '#444';
             ctx.stroke();
-            ctx.drawImage(this.image, drawX, drawY);
+            if (this.name == 'earth' && earthHit > 0) {
+                ctx.drawImage(images['hurtearth'], drawX, drawY);
+            }
+            else {
+                ctx.drawImage(this.image, drawX, drawY);
+            }
+
             // Only draw this object if it is on screen
             // TODO only draw planets if they are on screen, wouldn't be necessary
             //if (camera.x < this.x + this.width &&
@@ -345,10 +407,10 @@ function Player() {
                 this.y += this.dy;
             }
 
-            if (this.dx > 20) this.dx = 20;
-            if (this.dx < -20) this.dx = -20;
-            if (this.dy > 20) this.dy = 20;
-            if (this.dy < -20) this.dy = -20;
+            if (this.dx > 12) this.dx = 12;
+            if (this.dx < -12) this.dx = -12;
+            if (this.dy > 12) this.dy = 12;
+            if (this.dy < -12) this.dy = -12;
 
             // If we are going off the edge of the map, don't go further
             if (this.x < -MAP_SIDE_LENGTH / 2 + this.width / 2) this.x = -MAP_SIDE_LENGTH / 2 + this.width / 2;
@@ -450,7 +512,7 @@ function Alien(startX, startY) {
                     var forceY = 0;
 
                     var evasionDist = 200;
-                    if (surfaceDist < evasionDist) {
+                    if (surfaceDist < evasionDist && planet.name != 'earth') {
 
                         var distXNormPerp = -surfaceDistYNorm;
                         var distYNormPerp = surfaceDistXNorm;
@@ -583,7 +645,7 @@ function AlienSpawner(aliens) {
         aliens: aliens,
         timeTillSpawn: 60 * 20,
         countdown: 0,
-        nextSpawnCount: 5,
+        nextSpawnCount: 10,
         warningMessage: '',
         warningCountdown: 180,
         update: function() {
@@ -595,14 +657,14 @@ function AlienSpawner(aliens) {
                 this.countdown = this.timeTillSpawn;
                 this.warningMessage = this.nextSpawnCount + ' Huge Aliens Have Arrived!';
                 this.warningCountdown = 180;
-                this.nextSpawnCount = this.nextSpawnCount * 2;
+                this.nextSpawnCount = Math.floor(this.nextSpawnCount * 1.3);
                 sounds['new_wave'].play();
             }
         },
         draw: function() {
             ctx.fillStyle = 'white';
-            ctx.fillText("New Aliens In: " + this.countdown, 20, 40);
-            ctx.fillText("SCORE: " + score, 20, 80);
+            ctx.fillText("New Aliens In: " + this.countdown, 20, 80);
+            ctx.fillText("SCORE: " + score, 20, 120);
             if (this.warningCountdown > 0) {
                 this.warningCountdown--;
                 ctx.fillText(this.warningMessage, 20, SCREEN_HEIGHT - 20);
@@ -718,6 +780,32 @@ function drawStarfield() {
     ctx.drawImage(starfield, drawX + starfield.width, drawY + starfield.height);
 }
 
+function slide(image, callback, showScore) {
+    var loop = function() {
+        ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        ctx.drawImage(image, (SCREEN_WIDTH / 2) - (image.width / 2), 0);
+        if (showScore) {
+            ctx.beginPath();
+            ctx.font = "bold 48px Inconsolata";
+            ctx.fillStyle = 'white';
+            ctx.fillText(score, (SCREEN_WIDTH / 2) - (image.width / 2) + 625, 550);
+            ctx.font = "bold 24px Inconsolata";
+        }
+        if (advanceSlide) {
+            advanceSlide = false;
+            callback();
+        }
+        else {
+            setTimeout(loop, 100);
+        }
+    };
+    setTimeout(loop, 100);
+}
+
+
+
+
+
 soundManager.flashVersion = 9;
 soundManager.useHighPerformance = true;
 soundManager.useFastPolling = true;
@@ -732,7 +820,7 @@ soundManager.onready(function(oStatus) {
 
     if (!oStatus.success) {
         //return false;   
-        console.log('no sound');
+        //console.log('no sound');
     }
 
     sounds = {
@@ -741,10 +829,15 @@ soundManager.onready(function(oStatus) {
         'new_wave': soundManager.createSound({id: 'new_wave', url: 'sounds/new_wave.mp3', autoLoad: true}),
         'takeoff': soundManager.createSound({id: 'takeoff', url: 'sounds/takeoff.mp3', autoLoad: true}),
         'landing': soundManager.createSound({id: 'landing', url: 'sounds/landing.mp3', autoLoad: true}),
-        'laser_shoot': soundManager.createSound({id: 'laser_shoot', url: 'sounds/laser_shoot.mp3', autoLoad: true})
     };
+    soundManager.setVolume('explosion', 20);
+    soundManager.setVolume('punch', 20);
+    soundManager.setVolume('landing', 20);
+    soundManager.setVolume('new_wave', 20);
+    soundManager.setVolume('takeoff', 20);
 
     var bgm = soundManager.createSound({id: 'bgm', url: 'sounds/bgm.mp3', autoLoad: true, loops: 100000, onload: function(){this.play();}});
+    soundManager.setVolume('bgm', 50);
 
     $(document).ready(function(){
 
@@ -756,7 +849,11 @@ soundManager.onready(function(oStatus) {
         ctx = $('#game').get(0).getContext('2d');
 
         $(document).keyup(function(e) {handleKeyEvent(0, e);});
+        $(document).keypress(function(e) {
+            advanceSlide = true;
+            });
         $(document).keydown(function(e) {handleKeyEvent(1, e);});
+
 
         $(window).resize(function () {
             SCREEN_WIDTH = $(window).width() - 10;
@@ -765,6 +862,7 @@ soundManager.onready(function(oStatus) {
             ctx = $canvas.get(0).getContext('2d');
             ctx.font = "bold 24px Inconsolata";
         });
+
 
         loadImages(function() {
 
@@ -786,54 +884,93 @@ soundManager.onready(function(oStatus) {
             var shockwaves = [];
 
             var player = Player();
+
+            var healthBar = HealthBar();
             
 
             ctx.font = "bold 24px Inconsolata";
             var spawner = AlienSpawner(aliens);
 
-            var mainLoop = function() {
-                // Show the loading screen if we are still loading things
-                if (numLoading > 0) {
-                    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-                    ctx.fillText("Definitely Loading...", 50, 50);
-                }
+            advanceSlide = false;
+            // this is kind of aweful, but I couldn't think of anything better in the short time
+            slide(images['sponsor'], function() {
+                slide(images['title'], function() {
+                slide(images['story1'], function() {
+                slide(images['story2'], function() {
+                slide(images['story3'], function() {
+                slide(images['story4'], function() {
+                slide(images['story5'], function() {
+                slide(images['howtoplay'], function() {
 
+                    var mainLoop = function() {
 
-                ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-                // Update everything
-                // Update planets before player since we may be riding a planet
-                spawner.update();
-                for (var i = 0; i < planets.length; i++) {
-                    planets[i].update();
-                }
-                player.update(planets, shockwaves);
-                for (var i = 0; i < shockwaves.length; i++) {
-                    shockwaves[i].update(aliens, shockwaves);
-                }
-                camera.update(player);
-                for (var i = 0; i < aliens.length; i++) {
-                    aliens[i].update(planets);
-                }
+                        ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+                        // Update everything
+                        // Update planets before player since we may be riding a planet
+                        spawner.update();
+                        for (var i = 0; i < planets.length; i++) {
+                            planets[i].update();
+                        }
+                        player.update(planets, shockwaves);
+                        for (var i = 0; i < shockwaves.length; i++) {
+                            shockwaves[i].update(aliens, shockwaves);
+                        }
+                        camera.update(player);
+                        for (var i = 0; i < aliens.length; i++) {
+                            aliens[i].update(planets);
+                        }
+                        healthBar.update();
 
-                // Draw everything
-                drawStarfield();
-                for (var i = 0; i < planets.length; i++) {
-                    planets[i].draw();
-                }
-                for (var i = 0; i < aliens.length; i++) {
-                    aliens[i].draw();
-                }
-                for (var i = 0; i < shockwaves.length; i++) {
-                    shockwaves[i].draw();
-                }
-                player.draw();
-                drawMinimap(player, aliens, planets);
-                spawner.draw();
+                        // Draw everything
+                        drawStarfield();
+                        for (var i = 0; i < planets.length; i++) {
+                            planets[i].draw();
+                        }
+                        for (var i = 0; i < aliens.length; i++) {
+                            aliens[i].draw();
+                        }
+                        for (var i = 0; i < shockwaves.length; i++) {
+                            shockwaves[i].draw();
+                        }
+                        player.draw();
+                        drawMinimap(player, aliens, planets);
+                        healthBar.draw();
+                        spawner.draw();
 
-                setTimeout(mainLoop, FPS);
-            };
-            setTimeout(mainLoop, FPS);
+                        if (earthHealth > 0) {
+                            setTimeout(mainLoop, FPS);
+                        }
+                        else {
+                            advanceSlide = false;
+                            slide(images['gameover1'], function() {
+                                slide(images['gameover2'], function() {
+                                    punching = false;
+                                    score = 0;
+                                    earthHealth = 700;
+                                    earthHit = 0;
+                                    advanceSlide = false;
+                                    aliens = [];
+                                    camera = Camera();
+                                    shockwaves = [];
+                                    player = Player();
+                                    healthBar = HealthBar();
+                                    spawner = AlienSpawner(aliens);
+                                    setTimeout(mainLoop, FPS);
+                                }, true);
+                            });
+                        }
+                    };
+                    setTimeout(mainLoop, FPS);
+                });
+            });
+            });
+            });
+            });
+            });
+            });
+            });
         });
+
     });
 });
 

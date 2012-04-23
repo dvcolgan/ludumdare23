@@ -50,13 +50,6 @@ add a minimap
 
 
 
-used this for earth
-
-http://en.wikipedia.org/wiki/File:Terrestrial_planet_size_comparisons.jpg
-
-public domain nasa pictures
-
-
 Story:
 
 NARRATOR: It was a normal-sized day for the normal-sized citizens of our beloved normal-sized planet earth.
